@@ -95,6 +95,23 @@ export async function getFaqs() {
   return (await sql`SELECT * FROM faqs ORDER BY sort`) as { id: string; question: string; answer: string; category: string }[]
 }
 
+export async function getConciergeContext(): Promise<string> {
+  const [rooms, offers, menu] = await Promise.all([getRooms(), getOffers(), getMenu()])
+  const roomLines = rooms
+    .map(
+      (r) =>
+        `- ${r.name} (${r.beds}, sleeps ${r.capacity}, ${r.size_sqm}m²): from $${r.price}/night. ${r.description} Amenities: ${r.amenities.slice(0, 5).join(', ')}.`,
+    )
+    .join('\n')
+  const offerLines = offers
+    .map((o) => `- ${o.title}: ${o.description} (${o.discount_pct}% off${o.code ? `, code ${o.code}` : ''}).`)
+    .join('\n')
+  const menuLines = menu
+    .map((c) => `${c.name}: ${c.items.map((i: Record<string, unknown>) => i.name).join(', ')}`)
+    .join('\n')
+  return `ROOMS:\n${roomLines}\n\nOFFERS:\n${offerLines}\n\nMENU HIGHLIGHTS:\n${menuLines}`
+}
+
 export async function getReviewStats() {
   await ensureSchema()
   const rows = (await sql`

@@ -216,14 +216,56 @@ const DDL: string[] = [
   )`,
 ]
 
+// Bump when the schema shape changes. A version mismatch triggers a one-time
+// rebuild of the app tables (used to clear incompatible legacy tables).
+const SCHEMA_VERSION = 2
+
+const APP_TABLES = [
+  'loyalty_transactions',
+  'wishlist',
+  'notifications',
+  'contact_messages',
+  'waitlist',
+  'reviews',
+  'bookings',
+  'menu_items',
+  'menu_categories',
+  'offers',
+  'experiences',
+  'gallery',
+  'faqs',
+  'verification_codes',
+  'rooms',
+  'users',
+  'settings',
+]
+
 let initialized = false
+
+async function currentVersion(): Promise<number> {
+  await sql.query(`CREATE TABLE IF NOT EXISTS _schema_meta (version INTEGER NOT NULL)`)
+  const rows = (await sql.query(`SELECT version FROM _schema_meta LIMIT 1`)) as { version: number }[]
+  return rows[0]?.version ?? 0
+}
 
 export async function ensureSchema() {
   if (initialized) return
+
+  const version = await currentVersion()
+  if (version < SCHEMA_VERSION) {
+    // One-time reset to clear legacy/incompatible tables from the previous site.
+    for (const t of APP_TABLES) {
+      await sql.query(`DROP TABLE IF EXISTS ${t} CASCADE`)
+    }
+  }
+
   for (const stmt of DDL) {
     await sql.query(stmt)
   }
   await seed()
+
+  await sql.query(`DELETE FROM _schema_meta`)
+  await sql.query(`INSERT INTO _schema_meta (version) VALUES (${SCHEMA_VERSION})`)
   initialized = true
 }
 
